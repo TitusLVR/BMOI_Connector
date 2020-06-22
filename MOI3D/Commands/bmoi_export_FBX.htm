@@ -1,0 +1,1092 @@
+<html xmlns:moi>
+	<head>
+		<link rel="stylesheet" href="moi://ui/moi.css" type="text/css">
+		<script>
+
+
+
+
+
+var vertices=[], faces=[], max={ x:-100000, y:-100000, z:-100000 }, min={ x:100000, y:100000, z:100000 }, objName, errors=0, scale, normalize, faceobj = moi.geometryDatabase.createObjectList();
+			function cleanSpaces(str) { return str.replace(/^\s+|\s+$/g, '').replace(/ +(?= )/g,'')};
+			function loadObj( objPath )
+			{
+				var objFile = moi.filesystem.openFileStream( objPath, 'r' ), x, y, z;
+				while ( !objFile.AtEOF ) 
+				{ 
+					var nextLine = cleanSpaces(objFile.readLine()).split(' ');
+					if ( nextLine[0] === "v" )
+					{
+						x = nextLine[1]*1;			y = -nextLine[3]*1;			z = nextLine[2]*1;
+						if (x<min.x) { min.x=x; }	if (y<min.y) { min.y=y; }	if (z<min.z) { min.z=z; }
+						if (x>max.x){ max.x=x; }	if (y>max.y){ max.y=y; }	if (z>max.z) { max.z=z; }
+						vertices.push({x:x, y:y, z:z});	
+					}
+					if (  nextLine[0] === "f" ) faces.push(nextLine);
+				}
+				objFile.close();
+				objName = moi.filesystem.getFileNameFromPath(objPath);
+				objName = objName.substr(0, objName.lastIndexOf('.'));
+			}
+			
+			function normalizeObj (norm)
+			{
+				normalize = norm;
+				scale = 200/(max.x-min.x+max.y-min.y+max.z-min.z)/3
+				var scalelog = Math.pow(10, Math.round(Math.log(scale)/Math.log(10)));
+				if (scalelog>1) { scalelog /=10 }
+				scale = Math.round(scale/scalelog)*scalelog;
+				if (scale == 0) scale = scalelog;
+				if ( !normalize && scale<1 ) scale=1;
+				scale *=100;
+				if ( !normalize ) for ( v in vertices ) vertices[v] = moi.VectorMath.createPoint(vertices[v].x*scale, vertices[v].y*scale, vertices[v].z*scale);		
+				if ( normalize ) for ( v in vertices ) vertices[v] = moi.VectorMath.createPoint((vertices[v].x-max.x/2-min.x/2)*scale, (vertices[v].y-max.y/2-min.y/2)*scale, (vertices[v].z-min.z)*scale);
+				scale /=100;
+			}	
+			
+			function processObj(startPos, endPos)	
+			{
+				var lineF = moi.command.createFactory( 'line' ), lineV;
+				var loftF = moi.command.createFactory( 'loft' ), loftV;
+				var planarF = moi.command.createFactory( 'planarsrf' ), planarV;
+				for ( var f=startPos; f<endPos; f++ )
+				{	
+					var face = [], edges = moi.geometryDatabase.createObjectList();
+					for (var i=1; i < faces[f].length; i++) face.push(faces[f][i].split("/",1)-1);
+					var flen = face.length;
+					if ( flen > 4 ) 
+					{
+						for (var i=0; i < flen; i++)
+						{
+							lineF.setInput( 0, vertices[face[i]]);
+							lineF.setInput( 1, vertices[face[(i+1)%flen]]);
+							lineV=lineF.calculate();
+							edges.addObject(lineV.item(0));
+						}
+						planarF.setInput( 0, edges );
+						planarV=planarF.calculate();
+						if ( planarV.length > 0 ) { faceobj.addObject(planarV.item(0)) } else { errors++ }
+					}
+					else if ( flen ==3 || flen == 4 )
+					{
+						var sPt = 0, maxLength = 0, cLength=0, nPt;
+						for (var i = 0; i<flen; i++) 
+						{
+							nPt=(i+1)%flen;
+							cLength = Math.sqrt((vertices[face[nPt]].x-vertices[face[i]].x)*(vertices[face[nPt]].x-vertices[face[i]].x)+(vertices[face[nPt]].y-vertices[face[i]].y)*(vertices[face[nPt]].y-vertices[face[i]].y)+(vertices[face[nPt]].z-vertices[face[i]].z)*(vertices[face[nPt]].z-vertices[face[i]].z));
+							if ( cLength > maxLength ) { maxLength = cLength; sPt = i; }
+						}
+						lineF.setInput( 0, vertices[face[sPt]]); 			lineF.setInput( 1, vertices[face[(sPt+1)%flen]]);	lineV=lineF.calculate();	edges.addObject(lineV.item(0)); 
+						lineF.setInput( 0, vertices[face[(sPt+3)%flen]]);	lineF.setInput( 1, vertices[face[(sPt+2)%flen]]);	lineV=lineF.calculate();	edges.addObject(lineV.item(0));
+						loftF.setInput( 0, edges);
+						loftV = loftF.calculate();
+						if (loftV.length>0) { faceobj.addObject(loftV.item(0)) } else { errors++ }
+					} else { errors++ }
+				}
+			}
+			
+			function showObj()
+			{
+				var scale3d = moi.command.createFactory( 'scale' );
+				scale3d.setInput( 0, faceobj );
+				scale3d.setInput( 1, moi.VectorMath.createPoint(0,0,0) );
+				scale3d.setInput( 2, (normalize)?1/100:0.01/scale );
+				faceobj=scale3d.calculate();
+				
+				moi.geometryDatabase.addObjects(faceobj);
+				if ( normalize ) if (scale > 1) { objName = objName + " ["+scale+":1]" } else if (scale < 1) { objName = objName + " [1:"+Math.round(100/scale)/100+"]" }
+				if (errors>0) objName = objName + " err:"+errors;
+				faceobj.setProperty( 'name', objName);
+			}
+			function joinObj(joinmax)
+			{
+				if (faceobj.length>joinmax) return;
+				var joinF=moi.command.createFactory( 'join' );
+				joinF.setInput(0, faceobj);
+				joinF.commit();
+			}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+			var m, lastalpha = -1, subdobjects, sourceObject, tolerance = moi.GeometryDatabase.tolerance, showCPointsFlag = false, firstrun = true;
+
+			var c1=[], omega=[], lambda=[], lambda0=[], lambda3=[], sigma=[];
+
+			function calcConstants(max)
+			{
+				for (var n=2; n<max; n++) { c1[n] = Math.cos(Math.PI*2/n); }
+				for (var n=2; n<max; n++) { lambda[n] =(c1[n]+5+Math.sqrt((c1[n]+9)*(c1[n]+1)))/16; }
+				for (var n=2; n<max; n++) { sigma[n] = 1/(4*lambda[n]); }	sigma[3]=0.53;
+				for (var n=2; n<max; n++) { omega[n] = 16*lambda[n]-4; }
+				for (var n=2; n<max; n++) { lambda0[n] = 2* c1[n]; }
+				for (var n=2; n<max; n++) { lambda3[n] = -lambda0[n]; }
+			}
+
+			function concat( list ) { for ( var i = 1; i < arguments.length; i++ ) { var arglist = arguments[i];	for ( var j = 0; j < arglist.length; j++ ) list.addObject( arglist.item(j) ); } return list;}
+			function calcCurve ( factory ) { for ( var i = 1; i < arguments.length; i++ ) { factory.setInput( i-1, arguments[i]); }  return factory.calculate(); }
+			function roundT(value) { return Math.round(value/tolerance/1)*tolerance*1; }
+			function cJ(j,n) { return Math.cos(Math.PI*2*j/n); }
+			function sJ(j,n) { return Math.sin(Math.PI*2*j/n); }
+
+			var Point3D = function ( x, y, z ) { this.x = x || 0; this.y = y || 0; this.z = z || 0; };
+			Point3D.prototype =
+			{ 	constructor: Point3D,
+				set: function ( x, y, z ) {	this.x = x; this.y = y; this.z = z; return this; }
+			};
+
+			var MeshFace = function () { this.vertices=[]; this.fType=0; this.qType=0; this.isShort = false; }
+			MeshFace.prototype =
+			{
+				constructor: MeshFace,
+				getVertexPosition: function( vertexGlobalIndex ) { return this.vertices.indexOf(vertexGlobalIndex*1) },
+				getVertexGlobalIndex: function( vertexPosition )
+				{
+					var vlength = this.vertices.length;
+					if ( vlength !== 0 ) { return this.vertices[(vertexPosition+vlength)%vlength]; } else { return -1; }
+				}
+			};
+
+			var Mesh = function () { this.vertices = []; this.faces = []; this.alpha=0; this.vLimit=0; this.ordinaryFacesNum=0; this.nakedCornersNum=0;}
+			Mesh.prototype =
+			{
+				constructor: Mesh,
+
+				loadMesh: function (sourceFaces)
+				{
+					var errorFaces=[];
+					var tlr=moi.GeometryDatabase.tolerance, bbox = sourceFaces.getBoundingBox();
+					if ( bbox.xLength<bbox.yLength) { tlr=(bbox.xLength<bbox.zLength)?tlr*bbox.xLength:tlr*bbox.zLength;} else { tlr=(bbox.yLength<bbox.zLength)?tlr*bbox.yLength:tlr*bbox.zLength; }
+					if (tlr === 0) tlr=moi.GeometryDatabase.tolerance;
+
+					for ( var f = 0; f < sourceFaces.length; f++ )
+					{
+						var faceVertices = [];
+						var sourceEdges = sourceFaces.item(f).getEdges();
+						if (sourceEdges.length >4 ) errorFaces.push(f);
+						var SVertices = [], EVertices = [];
+						for ( var e = 0; e < sourceEdges.length; e++ ) { SVertices[e] = sourceEdges.item(e).getStartPt(); EVertices[e] = sourceEdges.item(e).getEndPt(); }
+						if ( moi.VectorMath.distance(SVertices[0], SVertices[1])<=tlr || moi.VectorMath.distance(SVertices[0], EVertices[1])<=tlr )
+							{ SVertices[0]=sourceEdges.item(0).getEndPt(); EVertices[0] = sourceEdges.item(0).getStartPt(); }
+						for ( var e = 1; e < sourceEdges.length; e++ ) if  ( moi.VectorMath.distance(EVertices[e-1], EVertices[e])<moi.VectorMath.distance(EVertices[e-1], SVertices[e])) { SVertices[e]=sourceEdges.item(e).getEndPt(); EVertices[e] = sourceEdges.item(e).getStartPt(); }
+						for ( var e = 0; e < sourceEdges.length; e++ ) { faceVertices.push( this.addVertex( SVertices[e], true) );}
+
+						this.addFace(faceVertices);
+					}
+					this.vLimit = this.vertices.length;
+					return errorFaces;
+				},
+
+				processMesh: function ()
+				{
+					this.processVertices();
+					this.processNakedEdges();
+					this.processFaces();
+				},
+
+				processFaces: function()
+				{
+					for ( var cface in this.faces )
+					{
+						var vertexN = this.faces[cface].vertices.length;
+						var ordinaryVertices=0, vertex;
+						for (var cvertex in this.faces[cface].vertices) if ( !this.vertices[this.faces[cface].vertices[cvertex]].isExtraordinary ) { ordinaryVertices++; }
+						if ( vertexN === 4 ) { this.faces[cface].fType = 4; this.faces[cface].qType = (ordinaryVertices === 4)?4:0; } else { this.faces[cface].fType = (ordinaryVertices === 2)?2:3; this.faces[cface].qType = (ordinaryVertices === 0)?1:ordinaryVertices; }
+					}
+				},
+
+				processVertices: function()
+				{
+					var vlength = this.vertices.length;
+					for ( var v=0; v<vlength; v++ )
+					{
+						for ( var f in this.vertices[v].faces )
+						{
+							var cface = this.vertices[v].faces[f];
+							var vpos = this.faces[cface].getVertexPosition(v);
+							var vnext = this.faces[cface].getVertexGlobalIndex(vpos+1);
+							var vprev = this.faces[cface].getVertexGlobalIndex(vpos-1);
+							if ( this.getNeighbourFace(v, vnext, cface) < 0 ) { this.vertices[v].isNaked = true; this.vertices[v].nakedNeighbours.push(vnext);}
+							if ( this.getNeighbourFace(v, vprev, cface) < 0 ) { this.vertices[v].isNaked = true; this.vertices[v].nakedNeighbours.push(vprev);}
+						}
+						this.vertices[v].valence = this.vertices[v].faces.length + this.vertices[v].nakedNeighbours.length/2;
+						if ( this.vertices[v].faces.length === 1 ) { this.vertices[v].isCorner = true; this.nakedCornersNum++; }
+						if (( this.vertices[v].isNaked && this.vertices[v].valence > 3 ) || ( !this.vertices[v].isNaked && this.vertices[v].valence !== 4 )) this.vertices[v].isExtraordinary = true;
+					}
+
+					for ( var v=0; v<vlength; v++ ) if  ( this.vertices[v].nakedNeighbours.length>2 )
+					{
+						var groups = []; for ( var i = 0; i<this.vertices[v].nakedNeighbours.length/2; i++) { groups[i] = {v:v, faces:[], edges:[], vpos:[]}; if ( i>0 ) groups[i].v = this.addVertex(this.vertices[v], false);}
+						for ( var i in groups )
+						{
+							var vpos, outv, inv = this.vertices[v].nakedNeighbours[0];
+							groups[i].edges.push(inv);
+							var cface = this.getNeighbourFaces(v, inv)[0];
+							do
+							{
+								vpos = this.faces[cface].getVertexPosition(v);
+								vnext = this.faces[cface].getVertexGlobalIndex(vpos+1);
+								vprev = this.faces[cface].getVertexGlobalIndex(vpos-1);
+								outv = ( inv === vprev )?vnext:vprev;
+								groups[i].faces.push(cface);
+								groups[i].vpos.push(vpos);
+								if ( this.getEdgeType(v, outv) === 0 )
+								{
+									groups[i].edges.push(outv);
+									this.vertices[v].nakedNeighbours.splice(this.vertices[v].nakedNeighbours.indexOf(groups[i].edges[1]),1);
+									this.vertices[v].nakedNeighbours.splice(0,1);
+								} else { cface = this.getNeighbourFace(v, outv, cface); inv = outv; }
+							} while ( groups[i].edges.length === 1 )
+						}
+
+						for ( var i in groups )
+						{
+							this.vertices[groups[i].v].isNaked = true;
+							this.vertices[groups[i].v].valence = groups[i].faces.length+1;
+							this.vertices[groups[i].v].nakedNeighbours.push(groups[i].edges[0]);
+							this.vertices[groups[i].v].nakedNeighbours.push(groups[i].edges[1]);
+							this.vertices[groups[i].edges[0]].nakedNeighbours[this.vertices[groups[i].edges[0]].nakedNeighbours.indexOf(v)]=groups[i].v;
+							this.vertices[groups[i].edges[1]].nakedNeighbours[this.vertices[groups[i].edges[1]].nakedNeighbours.indexOf(v)]=groups[i].v;
+							this.vertices[groups[i].v].isCorner = ( this.vertices[groups[i].v].valence  === 2 )?true:false;
+							this.vertices[groups[i].v].isExtraordinary = ( this.vertices[groups[i].v].valence > 3 )?true:false;
+							this.vertices[groups[i].v].faces=[];
+							for ( var f in groups[i].faces ) { this.faces[groups[i].faces[f]].vertices[groups[i].vpos[f]]=groups[i].v; this.vertices[groups[i].v].faces.push(groups[i].faces[f]); }
+						}
+					}
+				},
+
+				processNakedEdges: function()
+				{
+					var vlength = this.vertices.length;
+					for ( var v=0; v<vlength; v++ )
+					{
+						if (this.vertices[v].isNaked && this.vertices[v].isExtraordinary)
+						{
+							var oldBorder = [], newBorder = [], vnext, cnt = 0;
+							oldBorder.push(v);
+							this.vertices[v].isNaked = false;
+							vnext = this.vertices[v].nakedNeighbours[0];
+							do
+							{
+								oldBorder.push(vnext);
+								this.vertices[vnext].isNaked = false;
+								vnext = ( this.vertices[vnext].nakedNeighbours[0] === oldBorder[cnt] )?this.vertices[vnext].nakedNeighbours[1]:this.vertices[vnext].nakedNeighbours[0];
+								cnt++;
+							} while ( vnext !== oldBorder[0] )
+							cnt++;
+							for ( var i = 0; i<oldBorder.length; i++)
+							{
+								var x = this.vertices[oldBorder[i]].x;
+								var y = this.vertices[oldBorder[i]].y;
+								var z = this.vertices[oldBorder[i]].z;
+								newBorder[i] = this.addVertex({x:x, y:y, z:z}, false);
+							}
+							for ( var i = 0; i<oldBorder.length; i++)
+							{
+								var newFace = this.addFace([oldBorder[i], oldBorder[(i+1)%cnt], newBorder[(i+1)%cnt], newBorder[i]]);
+								this.faces[newFace].isShort = true;
+								this.vertices[newBorder[i]].isNaked = true;
+								this.vertices[newBorder[i]].valence = 3;
+								this.vertices[newBorder[i]].nakedNeighbours[0]=newBorder[(i+1)%cnt];
+								this.vertices[newBorder[i]].nakedNeighbours[1]=newBorder[(i-1+cnt)%cnt];
+								this.vertices[oldBorder[i]].nakedNeighbours=[];
+								this.vertices[oldBorder[i]].valence++;
+								if ( this.vertices[oldBorder[i]].isCorner ) { this.vertices[oldBorder[i]].isCorner = false; this.nakedCornersNum--; }
+								if ( this.vertices[oldBorder[i]].valence !== 4 ) this.vertices[oldBorder[i]].isExtraordinary = true;
+							}
+						}
+					}
+				},
+
+				addVertex: function ( vertex, existCheck )
+				{
+					var tmpx = roundT(vertex.x), tmpy = roundT(vertex.y), tmpz = roundT(vertex.z);
+					var verticesLength = this.vertices.length;
+					if ( existCheck === true )  for ( var i = verticesLength-1; i >= this.vLimit; i--) { if ( this.vertices[i].c.x === tmpx && this.vertices[i].c.y === tmpy && this.vertices[i].c.z === tmpz )  return i; }
+
+					this.vertices[verticesLength] = new Point3D(vertex.x, vertex.y, vertex.z);
+					this.vertices[verticesLength].c = new Point3D(tmpx, tmpy, tmpz);
+					this.vertices[verticesLength].v = new Point3D();
+					this.vertices[verticesLength].faces = [];
+					this.vertices[verticesLength].valence = 0;
+					this.vertices[verticesLength].isPolar = false;
+					this.vertices[verticesLength].isExtraordinary = false;
+					this.vertices[verticesLength].isNaked = false;
+					this.vertices[verticesLength].isCorner = false;
+					this.vertices[verticesLength].nakedNeighbours = [];
+					this.vertices[verticesLength].vneighbours = [];
+					this.vertices[verticesLength].facepoint = [];
+					this.vertices[verticesLength].tangent = [];
+					this.vertices[verticesLength].extrafacepoint = [];
+					this.vertices[verticesLength].extratangent = [];
+					this.vertices[verticesLength].extrafacetangent = [];
+
+					return verticesLength;
+				},
+
+				addFace: function ( faceVertices )
+				{
+					var currentFace = this.faces.length;
+					this.faces[currentFace] = new MeshFace();
+					this.faces[currentFace].vertices = [];
+					for (var i=0; i< faceVertices.length; i++)
+					{
+						this.faces[currentFace].vertices.push(faceVertices[i]);
+						this.vertices[faceVertices[i]].faces.push(currentFace);
+					}
+					this.faces[currentFace].vnum = faceVertices.length;
+					return currentFace;
+				},
+
+				getNeighbourFaces: function ( edgeStartIndex, edgeEndIndex )
+				{
+					var neighbourFaces = [];
+					var tmpFaces = this.vertices[edgeStartIndex].faces;
+					for (var i=0; i<tmpFaces.length; i++) if (this.faces[tmpFaces[i]].vertices.indexOf(edgeEndIndex) >=0 ) neighbourFaces.push(tmpFaces[i]);
+					return neighbourFaces;
+				},
+
+				getNeighbourFace: function ( edgeStartIndex, edgeEndIndex, faceIndex )
+				{
+					var tmpFaces = this.vertices[edgeStartIndex].faces;
+					if ( tmpFaces.indexOf(faceIndex*1) <0 ) return -2;
+					for (var i=0; i<tmpFaces.length; i++) { if ((this.faces[tmpFaces[i]].vertices.indexOf(edgeEndIndex*1) >=0) && (tmpFaces[i] != faceIndex)) return tmpFaces[i];}
+					return -1;
+				},
+
+				getEdgeType: function ( edgeStartIndex, edgeEndIndex )
+				{
+					var commonFacesNum = -1;
+					var tmpFaces = this.vertices[edgeStartIndex].faces;
+					for (var i=0; i<tmpFaces.length; i++) if (this.faces[tmpFaces[i]].vertices.indexOf(edgeEndIndex) >=0 ) commonFacesNum++;
+					return commonFacesNum;
+				},
+
+				newVertexPoint: function (vertexIndex)
+				{
+					return moi.VectorMath.createPoint(this.vertices[vertexIndex].v.x ,this.vertices[vertexIndex].v.y, this.vertices[vertexIndex].v.z);
+				},
+
+				tangentPoint: function (fromVertexIndex, toVertexIndex)
+				{
+					return moi.VectorMath.createPoint(this.vertices[fromVertexIndex].v.x+this.vertices[fromVertexIndex].tangent[toVertexIndex].x , this.vertices[fromVertexIndex].v.y+this.vertices[fromVertexIndex].tangent[toVertexIndex].y, this.vertices[fromVertexIndex].v.z+this.vertices[fromVertexIndex].tangent[toVertexIndex].z );
+				},
+
+				extraPoint: function (fromVertexIndex, toVertexIndex1, toVertexIndex2)
+				{
+					var c3 = cJ(1,this.vertices[fromVertexIndex].faces.length);
+					var v = this.vertices[fromVertexIndex].v;
+					var t1 = this.tangentPoint(fromVertexIndex, toVertexIndex1);
+					var t2 = this.tangentPoint(fromVertexIndex, toVertexIndex2);
+
+					var px = (1/(2+c3))*(2*t1.x+t2.x+(c3-1)*this.vertices[fromVertexIndex].v.x);
+					var py = (1/(2+c3))*(2*t1.y+t2.y+(c3-1)*this.vertices[fromVertexIndex].v.y);
+					var pz = (1/(2+c3))*(2*t1.z+t2.z+(c3-1)*this.vertices[fromVertexIndex].v.z);
+					px = this.alpha*px+(1-this.alpha)*(t1.x);
+					py = this.alpha*py+(1-this.alpha)*(t1.y);
+					pz = this.alpha*pz+(1-this.alpha)*(t1.z);
+					return moi.VectorMath.createPoint(px, py, pz);
+				},
+
+				facePoint: function (vertexIndex, faceIndex )
+				{
+					return moi.VectorMath.createPoint(this.vertices[vertexIndex].facepoint[faceIndex].x, this.vertices[vertexIndex].facepoint[faceIndex].y, this.vertices[vertexIndex].facepoint[faceIndex].z );
+				},
+
+				subdivBezier: function (p0, p1, p2, p3)
+				{
+					var sdb=[];
+					sdb[0]={}; sdb[1]={}; sdb[2]={}; sdb[3]={}; sdb[4]={}; sdb[5]={}; sdb[6]={}; sdb[7]={}; sdb[8]={}; sdb[9]={};
+
+					sdb[0].x = p0.x;								sdb[0].y = p0.y;								sdb[0].z = p0.z;
+					sdb[1].x = (2*p0.x+p1.x)/3;						sdb[1].y = (2*p0.y+p1.y)/3;						sdb[1].z = (2*p0.z+p1.z)/3;
+					sdb[2].x = (4*p0.x+4*p1.x+p2.x)/9;				sdb[2].y = (4*p0.y+4*p1.y+p2.y)/9;				sdb[2].z = (4*p0.z+4*p1.z+p2.z)/9;
+					sdb[4].x = (4*p0.x+12*p1.x+9*p2.x+2*p3.x)/27;		sdb[4].y = (4*p0.y+12*p1.y+9*p2.y+2*p3.y)/27;		sdb[4].z = (4*p0.z+12*p1.z+9*p2.z+2*p3.z)/27;
+					sdb[3].x = (sdb[2].x+sdb[4].x)/2;					sdb[3].y = (sdb[2].y+sdb[4].y)/2;					sdb[3].z = (sdb[2].z+sdb[4].z)/2;
+
+					sdb[9].x = p3.x;								sdb[9].y = p3.y;								sdb[9].z = p3.z;
+					sdb[8].x = (2*p3.x+p2.x)/3;						sdb[8].y = (2*p3.y+p2.y)/3;						sdb[8].z = (2*p3.z+p2.z)/3;
+					sdb[7].x = (4*p3.x+4*p2.x+p1.x)/9;				sdb[7].y = (4*p3.y+4*p2.y+p1.y)/9;				sdb[7].z = (4*p3.z+4*p2.z+p1.z)/9;
+					sdb[5].x = (4*p3.x+12*p2.x+9*p1.x+2*p0.x)/27;		sdb[5].y = (4*p3.y+12*p2.y+9*p1.y+2*p0.y)/27;		sdb[5].z = (4*p3.z+12*p2.z+9*p1.z+2*p0.z)/27;
+					sdb[6].x = (sdb[7].x+sdb[5].x)/2;					sdb[6].y = (sdb[7].y+sdb[5].y)/2;					sdb[6].z = (sdb[7].z+sdb[5].z)/2;
+
+					return sdb;
+				},
+
+				vmPoint: function (pt) { return moi.VectorMath.createPoint(pt.x, pt.y, pt.z); },
+
+				calculateBasePoints: function (alpha)
+				{
+					this.alpha = alpha;
+					var alpha1 = 2/3*alpha, alpha2 = 2/3*alpha;
+					for (var v in this.vertices)
+					{
+						this.vertices[v].vneighbours=[];
+						var vx=vy=vz=nn0=nn1=polarCnt=0;
+						var fnj=[], fj=[], tto=[];
+						var fn=this.vertices[v].faces.length;
+						if ( this.vertices[v].isNaked ) { nn0 = this.vertices[v].nakedNeighbours[0]; nn1 = this.vertices[v].nakedNeighbours[1]; }
+
+						var triCnt=0;
+						var vNmbr, vShift=1, curFace, curFaceIndex, vLast=0;
+						for ( var j=0; j<fn; j++)
+						{
+							if ( j === 0 )
+							{
+								if ( this.vertices[v].isNaked )
+								{
+									var ftmp = this.getNeighbourFaces(v, nn0);
+									curFaceIndex = ftmp[0];
+									vNmbr=this.faces[curFaceIndex].getVertexPosition(v);
+									vShift = ( this.faces[curFaceIndex].getVertexGlobalIndex(vNmbr+1) ===  nn0)?1:-1;
+								}
+								else
+								{
+									for ( curFaceIndex in this.vertices[v].faces ) {break;}
+									curFaceIndex=this.vertices[v].faces[curFaceIndex];
+									vNmbr=this.faces[curFaceIndex].getVertexPosition(v);
+									vShift = 1;
+								}
+							}
+							else
+							{
+								curFaceIndex=this.getNeighbourFace(v, vLast, curFaceIndex);
+								vNmbr=this.faces[curFaceIndex].getVertexPosition(v);
+								vShift = ( this.faces[curFaceIndex].getVertexGlobalIndex(vNmbr+1) ===  vLast )?1:-1;
+							}
+							curFace = this.faces[curFaceIndex];
+							vLast = curFace.getVertexGlobalIndex(vNmbr-vShift);
+							var n=curFace.vertices.length;
+							var p, p0, p1, p2, fx, fy, fz;
+							p=this.vertices[curFace.getVertexGlobalIndex(vNmbr)];
+							p0=this.vertices[curFace.getVertexGlobalIndex(vNmbr+vShift)];
+							this.vertices[v].vneighbours.push(curFace.getVertexGlobalIndex(vNmbr+vShift));
+							p2=this.vertices[curFace.getVertexGlobalIndex(vNmbr-vShift)];
+							if ( n===3 )
+							{
+								if ( curFace.fType == 2 || curFace.fType == 3 ) triCnt++;
+								if ( p0.isPolar ) polarCnt++;
+								p1= new Point3D(p0.x/2+p2.x/2, p0.y/2+p2.y/2, p0.z/2+p2.z/2);
+							} else { p1=this.vertices[curFace.getVertexGlobalIndex(vNmbr+2)]}
+
+							fx = (1-alpha1)*(1-alpha2)*p.x+(1-alpha1)*alpha2*(p.x+p0.x)/2+alpha1*(1-alpha2)*(p.x+p2.x)/2+alpha1*alpha2*(p.x+p0.x+p2.x+p1.x)/4;
+							fy = (1-alpha1)*(1-alpha2)*p.y+(1-alpha1)*alpha2*(p.y+p0.y)/2+alpha1*(1-alpha2)*(p.y+p2.y)/2+alpha1*alpha2*(p.y+p0.y+p2.y+p1.y)/4;
+							fz = (1-alpha1)*(1-alpha2)*p.z+(1-alpha1)*alpha2*(p.z+p0.z)/2+alpha1*(1-alpha2)*(p.z+p2.z)/2+alpha1*alpha2*(p.z+p0.z+p2.z+p1.z)/4;
+
+							if ( !this.vertices[v].isNaked )
+							{
+								vx=vx+(9*fx+(fn-4)*p.x)/(fn*(fn+5));
+								vy=vy+(9*fy+(fn-4)*p.y)/(fn*(fn+5));
+								vz=vz+(9*fz+(fn-4)*p.z)/(fn*(fn+5));
+							}
+
+							this.vertices[v].facepoint[curFaceIndex]=new Point3D(fx, fy, fz);
+							tto.push(curFace.getVertexGlobalIndex(vNmbr+vShift));
+							if (this.vertices[v].isNaked && j === fn-1) tto.push(curFace.getVertexGlobalIndex(vNmbr-vShift));
+
+							fnj[j]=new Point3D(fx, fy, fz);
+						}
+						
+						if ( this.vertices[v].isNaked ) this.vertices[v].vneighbours.push(curFace.getVertexGlobalIndex(vNmbr-vShift));
+						if ( this.vertices[v].isNaked )
+						{
+							vx = (1-this.alpha)*this.vertices[v].x+(4*this.vertices[v].x+this.vertices[nn0].x+this.vertices[nn1].x)*this.alpha/6;
+							vy = (1-this.alpha)*this.vertices[v].y+(4*this.vertices[v].y+this.vertices[nn0].y+this.vertices[nn1].y)*this.alpha/6;
+							vz = (1-this.alpha)*this.vertices[v].z+(4*this.vertices[v].z+this.vertices[nn0].z+this.vertices[nn1].z)*this.alpha/6;
+						}
+
+						if ( triCnt > 0 ) this.vertices[v].isExtraordinary=false;
+
+						if ( triCnt === fn && polarCnt === 0 ) { this.vertices[v].isPolar=true; polarCnt = 1; }
+						var ej=[], eNum;
+						var tau1={ x:0, y:0, z:0 }, tau2={ x:0, y:0, z:0 };
+
+						if ( this.vertices[v].isNaked )
+						{
+							ej.push(new Point3D(alpha1/2*this.vertices[nn0].x + (1-alpha1/2)*this.vertices[v].x, alpha1/2*this.vertices[nn0].y + (1-alpha1/2)*this.vertices[v].y, alpha1/2*this.vertices[nn0].z + (1-alpha1/2)*this.vertices[v].z));
+							for ( var j = 1; j<fn; j++) { var jp = j-1; ej.push(new Point3D( (fnj[jp].x+fnj[j].x)/2, (fnj[jp].y+fnj[j].y)/2, (fnj[jp].z+fnj[j].z)/2));}
+							ej.push(new Point3D(alpha1/2*this.vertices[nn1].x + (1-alpha1/2)*this.vertices[v].x, alpha1/2*this.vertices[nn1].y + (1-alpha1/2)*this.vertices[v].y, alpha1/2*this.vertices[nn1].z + (1-alpha1/2)*this.vertices[v].z));
+							eNum = ej.length;
+							for ( var j = 0; j<eNum; j++) this.vertices[v].tangent[tto[j]] = ( this.vertices[v].isCorner && preserveCorners.value)?new Point3D( ej[j].x-this.vertices[v].x, ej[j].y-this.vertices[v].y, ej[j].z-this.vertices[v].z):new Point3D( ej[j].x-vx, ej[j].y-vy, ej[j].z-vz);
+						}
+						else
+						{
+							for ( var j = 0; j<fn; j++) { var jp = (j-1+fn) % fn; ej.push(new Point3D( (fnj[jp].x+fnj[j].x)/2, (fnj[jp].y+fnj[j].y)/2, (fnj[jp].z+fnj[j].z)/2));}
+							eNum = ej.length;
+							for ( var j = 0; j<fn; j++)
+							{
+								tau1.x += ej[j].x*cJ(j,eNum);	tau1.y += ej[j].y*cJ(j,eNum);	tau1.z += ej[j].z*cJ(j,eNum);
+								tau2.x += ej[j].x*sJ(j,eNum);	tau2.y += ej[j].y*sJ(j,eNum);	tau2.z += ej[j].z*sJ(j,eNum);
+							}
+							var nl = eNum*lambda[eNum];
+							for ( var j = 0; j<eNum; j++) this.vertices[v].tangent[tto[j]] = new Point3D( tau1.x*cJ(j,eNum)/nl+tau2.x*sJ(j,eNum)/nl, tau1.y*cJ(j,eNum)/nl+tau2.y*sJ(j,eNum)/nl,  tau1.z*cJ(j,eNum)/nl+tau2.z*sJ(j,eNum)/nl);
+						}
+
+						if ( this.vertices[v].isCorner && preserveCorners.value) { this.vertices[v].v.set(this.vertices[v].x, this.vertices[v].y, this.vertices[v].z); } else { this.vertices[v].v.set(vx, vy, vz); }
+					}
+					return true;
+				},
+
+
+				calculateExtraPoints: function (qMode)
+				{
+					if ( !qMode ) 	return;
+					var v, cv, f, vn, k, km, kp, kd, lambda1, lambda2;
+					var V0, V1, V2, V3, S0, S1, S2, S3, S4, S5, S6, S7, S8, S9;
+
+					for (var f in this.faces) if ( this.faces[f].qType === 0 )
+					{
+						var p=[];
+						for (var v in this.faces[f].vertices) {	var cv = this.faces[f].vertices[v];	p.push(cv);	this.vertices[cv].extrafacepoint[f]=[];		this.vertices[cv].extrafacetangent[f]=[];}
+
+						V0=this.subdivBezier( this.newVertexPoint(p[0]),		this.tangentPoint(p[0],p[1]),		this.tangentPoint(p[1],p[0]),		this.newVertexPoint(p[1]) );
+						V1=this.subdivBezier( this.tangentPoint(p[0], p[3]),	this.facePoint(p[0], f),			this.facePoint(p[1], f),			this.tangentPoint(p[1], p[2]));
+						V2=this.subdivBezier( this.tangentPoint(p[3], p[0]),	this.facePoint(p[3], f),			this.facePoint(p[2], f),			this.tangentPoint(p[2], p[1]));
+						V3=this.subdivBezier( this.newVertexPoint(p[3]),		this.tangentPoint(p[3], p[2]),		this.tangentPoint(p[2], p[3]),		this.newVertexPoint(p[2]));
+
+						S0=this.subdivBezier( V0[0], V1[0], V2[0], V3[0]),		S1=this.subdivBezier( V0[1], V1[1], V2[1], V3[1]);
+						S2=this.subdivBezier( V0[2], V1[2], V2[2], V3[2]),		S3=this.subdivBezier( V0[3], V1[3], V2[3], V3[3]);
+						S4=this.subdivBezier( V0[4], V1[4], V2[4], V3[4]),		S5=this.subdivBezier( V0[5], V1[5], V2[5], V3[5]);
+						S6=this.subdivBezier( V0[6], V1[6], V2[6], V3[6]),		S7=this.subdivBezier( V0[7], V1[7], V2[7], V3[7]);
+						S8=this.subdivBezier( V0[8], V1[8], V2[8], V3[8]),		S9=this.subdivBezier( V0[9], V1[9], V2[9], V3[9]);
+
+						this.vertices[p[0]].extrafacepoint[f][1]=S1[1];		this.vertices[p[0]].extrafacepoint[f][2]=S2[2];			this.vertices[p[0]].extrafacepoint[f][3]=S4[4];
+						this.vertices[p[1]].extrafacepoint[f][1]=S8[1];		this.vertices[p[1]].extrafacepoint[f][2]=S7[2];			this.vertices[p[1]].extrafacepoint[f][3]=S5[4];
+						this.vertices[p[2]].extrafacepoint[f][1]=S8[8];		this.vertices[p[2]].extrafacepoint[f][2]=S7[7];			this.vertices[p[2]].extrafacepoint[f][3]=S5[5];
+						this.vertices[p[3]].extrafacepoint[f][1]=S1[8];		this.vertices[p[3]].extrafacepoint[f][2]=S2[7];			this.vertices[p[3]].extrafacepoint[f][3]=S4[5];
+
+						this.vertices[p[0]].extrafacetangent[f][p[1]]=[];	this.vertices[p[0]].extrafacetangent[f][p[1]][1]=S2[1];	this.vertices[p[0]].extrafacetangent[f][p[1]][2]=S4[1];	this.vertices[p[0]].extrafacetangent[f][p[1]][3]=S4[2];
+						this.vertices[p[1]].extrafacetangent[f][p[2]]=[];	this.vertices[p[1]].extrafacetangent[f][p[2]][1]=S8[2];	this.vertices[p[1]].extrafacetangent[f][p[2]][2]=S8[4];	this.vertices[p[1]].extrafacetangent[f][p[2]][3]=S7[4];
+						this.vertices[p[2]].extrafacetangent[f][p[3]]=[];	this.vertices[p[2]].extrafacetangent[f][p[3]][1]=S7[8];	this.vertices[p[2]].extrafacetangent[f][p[3]][2]=S5[8];	this.vertices[p[2]].extrafacetangent[f][p[3]][3]=S5[7];
+						this.vertices[p[3]].extrafacetangent[f][p[0]]=[];	this.vertices[p[3]].extrafacetangent[f][p[0]][1]=S1[7];	this.vertices[p[3]].extrafacetangent[f][p[0]][2]=S1[5];	this.vertices[p[3]].extrafacetangent[f][p[0]][3]=S2[5];
+						this.vertices[p[0]].extrafacetangent[f][p[3]]=[];	this.vertices[p[0]].extrafacetangent[f][p[3]][1]=S1[2];	this.vertices[p[0]].extrafacetangent[f][p[3]][2]=S1[4];	this.vertices[p[0]].extrafacetangent[f][p[3]][3]=S2[4];
+						this.vertices[p[1]].extrafacetangent[f][p[0]]=[];	this.vertices[p[1]].extrafacetangent[f][p[0]][1]=S7[1];	this.vertices[p[1]].extrafacetangent[f][p[0]][2]=S5[1];	this.vertices[p[1]].extrafacetangent[f][p[0]][3]=S5[2];
+						this.vertices[p[2]].extrafacetangent[f][p[1]]=[];	this.vertices[p[2]].extrafacetangent[f][p[1]][1]=S8[7];	this.vertices[p[2]].extrafacetangent[f][p[1]][2]=S8[5];	this.vertices[p[2]].extrafacetangent[f][p[1]][3]=S7[5];
+						this.vertices[p[3]].extrafacetangent[f][p[2]]=[];	this.vertices[p[3]].extrafacetangent[f][p[2]][1]=S2[8];	this.vertices[p[3]].extrafacetangent[f][p[2]][2]=S4[8];	this.vertices[p[3]].extrafacetangent[f][p[2]][3]=S4[7];
+
+						this.vertices[p[0]].extratangent[p[1]]=[];			this.vertices[p[0]].extratangent[p[1]][1]=S1[0];		this.vertices[p[0]].extratangent[p[1]][2]=S2[0];		this.vertices[p[0]].extratangent[p[1]][3]=S4[0];
+						this.vertices[p[1]].extratangent[p[2]]=[];			this.vertices[p[1]].extratangent[p[2]][1]=S9[1];		this.vertices[p[1]].extratangent[p[2]][2]=S9[2];		this.vertices[p[1]].extratangent[p[2]][3]=S9[4];
+						this.vertices[p[2]].extratangent[p[3]]=[];			this.vertices[p[2]].extratangent[p[3]][1]=S8[9];		this.vertices[p[2]].extratangent[p[3]][2]=S7[9];		this.vertices[p[2]].extratangent[p[3]][3]=S5[9];
+						this.vertices[p[3]].extratangent[p[0]]=[];			this.vertices[p[3]].extratangent[p[0]][1]=S0[8];		this.vertices[p[3]].extratangent[p[0]][2]=S0[7];		this.vertices[p[3]].extratangent[p[0]][3]=S0[5];
+						this.vertices[p[0]].extratangent[p[3]]=[];			this.vertices[p[0]].extratangent[p[3]][1]=S0[1];		this.vertices[p[0]].extratangent[p[3]][2]=S0[2];		this.vertices[p[0]].extratangent[p[3]][3]=S0[4];
+						this.vertices[p[1]].extratangent[p[0]]=[];			this.vertices[p[1]].extratangent[p[0]][1]=S8[0];		this.vertices[p[1]].extratangent[p[0]][2]=S7[0];		this.vertices[p[1]].extratangent[p[0]][3]=S5[0];
+						this.vertices[p[2]].extratangent[p[1]]=[];			this.vertices[p[2]].extratangent[p[1]][1]=S9[8];		this.vertices[p[2]].extratangent[p[1]][2]=S9[7];		this.vertices[p[2]].extratangent[p[1]][3]=S9[5];
+						this.vertices[p[3]].extratangent[p[2]]=[];			this.vertices[p[3]].extratangent[p[2]][1]=S1[9];		this.vertices[p[3]].extratangent[p[2]][2]=S2[9];		this.vertices[p[3]].extratangent[p[2]][3]=S4[9];
+					}
+
+					for ( v in this.vertices ) if  (this.vertices[v].isExtraordinary ) for ( vn in this.vertices[v].vneighbours)
+					{
+						k=this.vertices[v].vneighbours[vn];
+						var nk=this.vertices[k].valence;
+						var n0=this.vertices[v].valence;
+						var nf = this.getNeighbourFaces(v, k);
+						var bk10 = this.vertices[v].extratangent[k][1];
+						var bk11a = this.vertices[v].extrafacepoint[nf[0]][1];
+						var bk11b = this.vertices[v].extrafacepoint[nf[1]][1];
+						var bk00 = this.vertices[v].v;
+
+						if (this.vertices[k].isExtraordinary) { lambda1=(2*lambda0[n0]+lambda3[nk])/3;  } else { lambda1 = lambda0[n0] / 2; }
+						this.vertices[v].extratangent[k][2].x=bk10.x+(3*(bk11a.x+bk11b.x-2*bk10.x)-lambda1*(bk10.x-bk00.x))/(2*lambda0[n0]);
+						this.vertices[v].extratangent[k][2].y=bk10.y+(3*(bk11a.y+bk11b.y-2*bk10.y)-lambda1*(bk10.y-bk00.y))/(2*lambda0[n0]);
+						this.vertices[v].extratangent[k][2].z=bk10.z+(3*(bk11a.z+bk11b.z-2*bk10.z)-lambda1*(bk10.z-bk00.z))/(2*lambda0[n0]);
+					}
+
+					for ( v in this.vertices ) if  (this.vertices[v].isExtraordinary ) for ( vn in this.vertices[v].vneighbours)
+					{
+						k=this.vertices[v].vneighbours[vn];
+						var bk10 = this.vertices[v].extratangent[k][1];
+						var bk20 = this.vertices[v].extratangent[k][2];
+						var bk70 = this.vertices[k].extratangent[v][2];
+						var bk80 = this.vertices[k].extratangent[v][1];
+						if (this.vertices[k].isExtraordinary )
+						{
+							this.vertices[v].extratangent[k][3].x = (4*bk20.x-bk80.x+2*bk70.x-2*bk10.x)/3;
+							this.vertices[v].extratangent[k][3].y = (4*bk20.y-bk80.y+2*bk70.y-2*bk10.y)/3;
+							this.vertices[v].extratangent[k][3].z = (4*bk20.z-bk80.z+2*bk70.z-2*bk10.z)/3;
+						}
+						else if (this.vertices[v].valence > 3)
+						{
+
+							this.vertices[v].extratangent[k][3].x = 41/25*bk20.x + 4/25*bk70.x - 4/5*bk10.x;
+							this.vertices[v].extratangent[k][3].y = 41/25*bk20.y + 4/25*bk70.y - 4/5*bk10.y;
+							this.vertices[v].extratangent[k][3].z = 41/25*bk20.z + 4/25*bk70.z - 4/5*bk10.z;
+
+							this.vertices[k].extratangent[v][3].x = 36/25*bk20.x + 9/25*bk70.x - 4/5*bk10.x;
+							this.vertices[k].extratangent[v][3].y = 36/25*bk20.y + 9/25*bk70.y - 4/5*bk10.y;
+							this.vertices[k].extratangent[v][3].z = 36/25*bk20.z + 9/25*bk70.z - 4/5*bk10.z;
+						}
+					}
+
+					for ( f in this.faces ) if ( this.faces[f].qType === 0 ) for ( cv=0; cv<4; cv++)
+					{
+						v=this.faces[f].vertices[cv];
+						kp=this.faces[f].vertices[(cv+1)%4];
+						kd=this.faces[f].vertices[(cv+2)%4];
+						km=this.faces[f].vertices[(cv+3)%4];
+						var bk01 = this.vertices[v].extratangent[km][1];
+						var bk11 = this.vertices[v].extrafacepoint[f][1];
+						var bk81 = this.vertices[kp].extrafacepoint[f][1];
+						var bk91 = this.vertices[kp].extratangent[kd][1];
+
+						if ( this.vertices[kp].isExtraordinary || this.vertices[v].isExtraordinary )
+						{
+							this.vertices[v].extrafacetangent[f][kp][4]={};
+							this.vertices[v].extrafacetangent[f][kp][4].x = (-4/9)*bk01.x+(4/3)*bk11.x+(1/3)*bk81.x-(2/9)*bk91.x;
+							this.vertices[v].extrafacetangent[f][kp][4].y = (-4/9)*bk01.y+(4/3)*bk11.y+(1/3)*bk81.y-(2/9)*bk91.y;
+							this.vertices[v].extrafacetangent[f][kp][4].z = (-4/9)*bk01.z+(4/3)*bk11.z+(1/3)*bk81.z-(2/9)*bk91.z;
+							this.vertices[kp].extrafacetangent[f][v][4]={};
+							this.vertices[kp].extrafacetangent[f][v][4].x = (-4/9)*bk91.x+(4/3)*bk81.x+(1/3)*bk11.x-(2/9)*bk01.x;
+							this.vertices[kp].extrafacetangent[f][v][4].y =(-4/9)*bk91.y+(4/3)*bk81.y+(1/3)*bk11.y-(2/9)*bk01.y;
+							this.vertices[kp].extrafacetangent[f][v][4].z = (-4/9)*bk91.z+(4/3)*bk81.z+(1/3)*bk11.z-(2/9)*bk01.z;
+
+							this.vertices[v].extrafacetangent[f][kp][5]={};
+							this.vertices[v].extrafacetangent[f][kp][5].x = (-20/27)*bk01.x+(4/3)*bk11.x+bk81.x-(16/27)*bk91.x;
+							this.vertices[v].extrafacetangent[f][kp][5].y = (-20/27)*bk01.y+(4/3)*bk11.y+bk81.y-(16/27)*bk91.y;
+							this.vertices[v].extrafacetangent[f][kp][5].z = (-20/27)*bk01.z+(4/3)*bk11.z+bk81.z-(16/27)*bk91.z;
+							this.vertices[kp].extrafacetangent[f][v][5]={};
+							this.vertices[kp].extrafacetangent[f][v][5].x = (-20/27)*bk91.x+(4/3)*bk81.x+bk11.x-(16/27)*bk01.x;
+							this.vertices[kp].extrafacetangent[f][v][5].y = (-20/27)*bk91.y+(4/3)*bk81.y+bk11.y-(16/27)*bk01.y;
+							this.vertices[kp].extrafacetangent[f][v][5].z = (-20/27)*bk91.z+(4/3)*bk81.z+bk11.z-(16/27)*bk01.z;
+						}
+					}
+
+					for ( v in this.vertices ) if  (this.vertices[v].isExtraordinary ) for ( vn in this.vertices[v].vneighbours)
+					{
+						k=this.vertices[v].vneighbours[vn];
+						var nk=this.vertices[k].valence;
+						var n0=this.vertices[v].valence;
+
+						var bk10 = this.vertices[v].extratangent[k][1];
+						var bk20 = this.vertices[v].extratangent[k][2];
+						var bk40 = this.vertices[v].extratangent[k][3];
+						var bk50 = this.vertices[k].extratangent[v][3];
+						var bk70 = this.vertices[k].extratangent[v][2];
+						var bk80 = this.vertices[k].extratangent[v][1];
+
+						if (this.vertices[k].isExtraordinary)
+						{
+							lambda1=(2*lambda0[n0]+lambda3[nk])/3;
+							lambda2=(lambda0[n0]+2*lambda3[nk])/3;
+
+							this.vertices[v].extratangent[k][4]={};
+							this.vertices[v].extratangent[k][4].x = bk20.x+(lambda0[n0]*((bk40.x-bk20.x)/2)+2*lambda1*(bk20.x-bk10.x))/6;
+							this.vertices[v].extratangent[k][4].y = bk20.y+(lambda0[n0]*((bk40.y-bk20.y)/2)+2*lambda1*(bk20.y-bk10.y))/6;
+							this.vertices[v].extratangent[k][4].z = bk20.z+(lambda0[n0]*((bk40.z-bk20.z)/2)+2*lambda1*(bk20.z-bk10.z))/6;
+							this.vertices[v].extratangent[k][5]={};
+							this.vertices[v].extratangent[k][5].x = bk40.x+(lambda2*((bk40.x-bk20.x)/2)+2*lambda1*(bk50.x-bk40.x))/6;
+							this.vertices[v].extratangent[k][5].y = bk40.y+(lambda2*((bk40.y-bk20.y)/2)+2*lambda1*(bk50.y-bk40.y))/6;
+							this.vertices[v].extratangent[k][5].z = bk40.z+(lambda2*((bk40.z-bk20.z)/2)+2*lambda1*(bk50.z-bk40.z))/6;
+						}
+						else
+						{
+							lambda1=lambda0[n0]/2;
+							this.vertices[v].extratangent[k][4]={};
+							this.vertices[v].extratangent[k][4].x = bk20.x+(lambda0[n0]*((bk40.x-bk20.x)/2)+lambda0[n0]*(bk20.x-bk10.x))/6;
+							this.vertices[v].extratangent[k][4].y = bk20.y+(lambda0[n0]*((bk40.y-bk20.y)/2)+lambda0[n0]*(bk20.y-bk10.y))/6;
+							this.vertices[v].extratangent[k][4].z = bk20.z+(lambda0[n0]*((bk40.z-bk20.z)/2)+lambda0[n0]*(bk20.z-bk10.z))/6;
+
+							this.vertices[v].extratangent[k][5]={};
+							this.vertices[v].extratangent[k][5].x = bk40.x+(lambda0[n0]*((bk70.x-bk50.x)/2))/12;
+							this.vertices[v].extratangent[k][5].y = bk40.y+(lambda0[n0]*((bk70.y-bk50.y)/2))/12;
+							this.vertices[v].extratangent[k][5].z = bk40.z+(lambda0[n0]*((bk70.z-bk50.z)/2))/12;
+						}
+					}
+
+					for ( v in this.vertices ) if  (this.vertices[v].isExtraordinary ) for ( vn in this.vertices[v].vneighbours)
+					{
+						k=this.vertices[v].vneighbours[vn];
+						var nk=this.vertices[k].valence;
+						var n0=this.vertices[v].valence;
+						var nf = this.getNeighbourFaces(v, k);
+
+						var bk21a = this.vertices[v].extrafacetangent[nf[0]][k][4];
+						var bk21b = this.vertices[v].extrafacetangent[nf[1]][k][4];
+						var bk41a = this.vertices[v].extrafacetangent[nf[0]][k][5];
+						var bk41b = this.vertices[v].extrafacetangent[nf[1]][k][5];
+						var bk51a = this.vertices[k].extrafacetangent[nf[0]][v][5];
+						var bk51b = this.vertices[k].extrafacetangent[nf[1]][v][5];
+						var bk50 = this.vertices[k].extratangent[v][3];
+
+						var h1 = this.vertices[v].extratangent[k][4];
+						var h2 = this.vertices[v].extratangent[k][5];
+
+						this.vertices[v].extrafacetangent[nf[0]][k][1].x = h1.x+(bk21a.x-bk21b.x)/2;
+						this.vertices[v].extrafacetangent[nf[0]][k][1].y = h1.y+(bk21a.y-bk21b.y)/2;
+						this.vertices[v].extrafacetangent[nf[0]][k][1].z = h1.z+(bk21a.z-bk21b.z)/2;
+						this.vertices[v].extrafacetangent[nf[1]][k][1].x = h1.x+(bk21b.x-bk21a.x)/2;
+						this.vertices[v].extrafacetangent[nf[1]][k][1].y = h1.y+(bk21b.y-bk21a.y)/2;
+						this.vertices[v].extrafacetangent[nf[1]][k][1].z = h1.z+(bk21b.z-bk21a.z)/2;
+
+						this.vertices[v].extrafacetangent[nf[0]][k][2].x = h2.x+(bk41a.x-bk41b.x)/2;
+						this.vertices[v].extrafacetangent[nf[0]][k][2].y = h2.y+(bk41a.y-bk41b.y)/2;
+						this.vertices[v].extrafacetangent[nf[0]][k][2].z = h2.z+(bk41a.z-bk41b.z)/2;
+						this.vertices[v].extrafacetangent[nf[1]][k][2].x = h2.x+(bk41b.x-bk41a.x)/2;
+						this.vertices[v].extrafacetangent[nf[1]][k][2].y = h2.y+(bk41b.y-bk41a.y)/2;
+						this.vertices[v].extrafacetangent[nf[1]][k][2].z = h2.z+(bk41b.z-bk41a.z)/2;
+
+						if ( !this.vertices[k].isExtraordinary )
+						{
+							this.vertices[k].extrafacetangent[nf[0]][v][2].x = bk50.x+(bk51a.x-bk51b.x)/2;
+							this.vertices[k].extrafacetangent[nf[0]][v][2].y = bk50.y+(bk51a.y-bk51b.y)/2;
+							this.vertices[k].extrafacetangent[nf[0]][v][2].z = bk50.z+(bk51a.z-bk51b.z)/2;
+
+							this.vertices[k].extrafacetangent[nf[1]][v][2].x = bk50.x+(bk51b.x-bk51a.x)/2;
+							this.vertices[k].extrafacetangent[nf[1]][v][2].y = bk50.y+(bk51b.y-bk51a.y)/2;
+							this.vertices[k].extrafacetangent[nf[1]][v][2].z = bk50.z+(bk51b.z-bk51a.z)/2;
+						}
+					}
+
+					for ( f in this.faces ) if ( this.faces[f].qType === 0 ) for ( cv=0; cv<4; cv++)
+					{
+						v=this.faces[f].vertices[cv];
+						kp=this.faces[f].vertices[(cv+1)%4];
+						kd=this.faces[f].vertices[(cv+2)%4];
+						km=this.faces[f].vertices[(cv+3)%4];
+
+						var bk04 = this.vertices[v].extratangent[km][3];
+						var bk14 = this.vertices[v].extrafacetangent[f][km][2];
+						var bk84 = this.vertices[kp].extrafacetangent[f][kd][2];
+						var bk94 = this.vertices[kp].extratangent[kd][3];
+						var bk40 = this.vertices[v].extratangent[kp][3];
+						var bk41 = this.vertices[v].extrafacetangent[f][kp][2];
+						var bk48 = this.vertices[km].extrafacetangent[f][kd][2];
+						var bk49 = this.vertices[km].extratangent[kd][3];
+
+						this.vertices[v].extrafacepoint[f][3].x = (-20/27*bk04.x+4/3*bk14.x+bk84.x-16/27*bk94.x-20/27*bk40.x+4/3*bk41.x+bk48.x-16/27*bk49.x)/2;
+						this.vertices[v].extrafacepoint[f][3].y = (-20/27*bk04.y+4/3*bk14.y+bk84.y-16/27*bk94.y-20/27*bk40.y+4/3*bk41.y+bk48.y-16/27*bk49.y)/2;
+						this.vertices[v].extrafacepoint[f][3].z = (-20/27*bk04.z+4/3*bk14.z+bk84.z-16/27*bk94.z-20/27*bk40.z+4/3*bk41.z+bk48.z-16/27*bk49.z)/2;
+					}
+
+					for ( f in this.faces ) if ( this.faces[f].qType === 0 ) for ( cv=0; cv<4; cv++)
+					{
+						v=this.faces[f].vertices[cv];
+						kp=this.faces[f].vertices[(cv+1)%4];
+						kd=this.faces[f].vertices[(cv+2)%4];
+						km=this.faces[f].vertices[(cv+3)%4];
+
+						if ( this.vertices[v].isExtraordinary || this.vertices[kp].isExtraordinary)
+						{
+							var bk41 = this.vertices[v].extrafacetangent[f][kp][2];
+							var bk51 = this.vertices[kp].extrafacetangent[f][v][2];
+							var bk44 = this.vertices[v].extrafacepoint[f][3];
+							var bk54 = this.vertices[kp].extrafacepoint[f][3];
+							var bk45 = this.vertices[km].extrafacepoint[f][3];
+							var bk55 = this.vertices[kd].extrafacepoint[f][3];
+
+							this.vertices[v].extrafacetangent[f][kp][3].x = 1/2*bk41.x+bk44.x-1/2*bk45.x;
+							this.vertices[v].extrafacetangent[f][kp][3].y = 1/2*bk41.y+bk44.y-1/2*bk45.y;
+							this.vertices[v].extrafacetangent[f][kp][3].z = 1/2*bk41.z+bk44.z-1/2*bk45.z;
+							this.vertices[kp].extrafacetangent[f][v][3].x = 1/2*bk51.x+bk54.x-1/2*bk55.x;
+							this.vertices[kp].extrafacetangent[f][v][3].y = 1/2*bk51.y+bk54.y-1/2*bk55.y;
+							this.vertices[kp].extrafacetangent[f][v][3].z = 1/2*bk51.z+bk54.z-1/2*bk55.z;
+						}
+					}
+
+					for ( f in this.faces ) if ( this.faces[f].qType === 0 ) for ( cv=0; cv<4; cv++)
+					{
+						v=this.faces[f].vertices[cv];
+						kp=this.faces[f].vertices[(cv+1)%4];
+						km=this.faces[f].vertices[(cv+3)%4];
+						if ( this.vertices[v].isExtraordinary )
+						{
+							var bk12 = this.vertices[v].extrafacetangent[f][km][1];
+							var bk42 = this.vertices[v].extrafacetangent[f][kp][3];
+							var bk52 = this.vertices[kp].extrafacetangent[f][v][3];
+
+							var bk21 = this.vertices[v].extrafacetangent[f][kp][1];
+							var bk24 = this.vertices[v].extrafacetangent[f][km][3];
+							var bk25 = this.vertices[km].extrafacetangent[f][v][3];
+
+							this.vertices[v].extrafacepoint[f][2].x = (1/2*bk12.x+bk42.x-1/2*bk52.x)/2 + (1/2*bk21.x+bk24.x-1/2*bk25.x)/2;
+							this.vertices[v].extrafacepoint[f][2].y = (1/2*bk12.y+bk42.y-1/2*bk52.y)/2 + (1/2*bk21.y+bk24.y-1/2*bk25.y)/2;
+							this.vertices[v].extrafacepoint[f][2].z = (1/2*bk12.z+bk42.z-1/2*bk52.z)/2 + (1/2*bk21.z+bk24.z-1/2*bk25.z)/2;
+						}
+					}
+
+					for ( v in this.vertices ) if  (this.vertices[v].isExtraordinary ) for ( vn in this.vertices[v].vneighbours)
+					{
+						k=this.vertices[v].vneighbours[vn];
+						if ( !this.vertices[k].isExtraordinary)
+						{
+							var nf = this.getNeighbourFaces(v, k);
+							var bk71a = this.vertices[k].extrafacetangent[nf[0]][v][1];
+							var bk71b = this.vertices[k].extrafacetangent[nf[1]][v][1];
+
+							this.vertices[k].extratangent[v][2].x = (bk71a.x+bk71b.x)/2;
+							this.vertices[k].extratangent[v][2].y = (bk71a.y+bk71b.y)/2;
+							this.vertices[k].extratangent[v][2].z = (bk71a.z+bk71b.z)/2;
+						}
+					}
+					return true;
+				},
+
+				buildOrdinaryFaces: function(qMode)
+				{
+					var pointF = moi.command.createFactory( 'point' );
+					var curveF4 = moi.command.createFactory( 'curve' );
+					for (var f = 0; f<4; f++) { curveF4.createInput('point'); }
+					var loftF = moi.command.createFactory( 'loft' );
+					loftF.setInput( 2, 'Loose' );
+					loftF.setInput( 3, false );
+					loftF.setInput( 4, false );
+
+					var objects = moi.geometryDatabase.createObjectList();
+					for (var f in this.faces)
+					{
+						var p=[];
+						var faceType=(qMode)?this.faces[f].qType:this.faces[f].fType;
+						if ( faceType === 1 ) faceType = 3;
+						if ( faceType === 4 )
+						{
+							for (var v in this.faces[f].vertices) p.push(this.faces[f].vertices[v]);
+
+							var curveV1=calcCurve( curveF4,	this.newVertexPoint(p[0]),		this.tangentPoint(p[0],p[1]),		this.tangentPoint(p[1],p[0]),		this.newVertexPoint(p[1]) );
+							var curveV4=calcCurve( curveF4,	this.newVertexPoint(p[3]),		this.tangentPoint(p[3], p[2]),		this.tangentPoint(p[2], p[3]),		this.newVertexPoint(p[2]));
+
+							if (this.faces[f].isShort) { loftF.setInput( 0, concat (curveV1, curveV4)) }
+							else
+							{
+								var curveV2=calcCurve( curveF4,	this.tangentPoint(p[0], p[3]),		this.facePoint(p[0], f),			this.facePoint(p[1], f),			this.tangentPoint(p[1], p[2]));
+								var curveV3=calcCurve( curveF4,	this.tangentPoint(p[3], p[0]),		this.facePoint(p[3], f),			this.facePoint(p[2], f),			this.tangentPoint(p[2], p[1]));
+								loftF.setInput( 0, concat (curveV1, curveV2,curveV3,curveV4) );
+							}
+							var loftV=loftF.calculate();
+							if (loftV.length >0 ) objects.addObject(loftV.item(0));
+						}
+						else if ( faceType === 2 || faceType === 3 )
+						{
+							var maxTri = 0;
+							for (var v in this.faces[f].vertices)
+							{
+								var vFaces = this.vertices[this.faces[f].vertices[v]].faces.length;
+								var vNeighboursNorm = ( this.vertices[this.faces[f].vertices[v]].isNaked )?3:4;
+								if (this.vertices[this.faces[f].vertices[v]].isPolar) { maxTri = 1000; p.push(this.faces[f].vertices[v]) }
+								else if ( faceType === 2 && this.vertices[this.faces[f].vertices[v]].vneighbours.length !== vNeighboursNorm ) { maxTri = 1000; p.push(this.faces[f].vertices[v])}
+								else if ( vFaces > maxTri ) { maxTri = vFaces; p.push(this.faces[f].vertices[v]) } else { p.unshift(this.faces[f].vertices[v]) }
+							}
+							var curveV1=calcCurve( curveF4,	this.newVertexPoint(p[0]),		this.tangentPoint(p[0], p[1]),		this.tangentPoint(p[1], p[0]),		this.newVertexPoint(p[1]));
+							var curveV2=calcCurve( curveF4,	this.tangentPoint(p[0], p[2]),		this.facePoint(p[0], f),			this.facePoint(p[1], f),			this.tangentPoint(p[1], p[2]));
+							var curveV3=calcCurve( curveF4,	this.tangentPoint(p[2], p[0]),		this.extraPoint(p[2], p[0], p[1]),	this.extraPoint(p[2], p[1], p[0]),	this.tangentPoint(p[2], p[1]));
+							pointF.setInput( 0, this.newVertexPoint(p[2]));
+							var pointV=pointF.calculate();
+							loftF.setInput( 0, concat (curveV1, curveV2, curveV3, pointV) );
+							var loftV=loftF.calculate();
+							if (loftV.length >0 ) objects.addObject(loftV.item(0));
+						}
+					}
+					loftF.cancel();		pointF.cancel();	curveF4.cancel();
+					return objects;
+				},
+
+				buildExtraordinaryFaces: function()
+				{
+					var stp = new STEP();
+					var filename = moi.filesystem.getTempDir()+'subd.stp';
+					stp.init(filename);
+					for (var f in this.faces) if ( this.faces[f].qType === 0 )
+					{
+						var p=[];
+
+						for (var v in this.faces[f].vertices) { p.push(this.faces[f].vertices[v]); }
+
+						stp.pushPoint(this.newVertexPoint(p[0]));					stp.pushPoint(this.vertices[p[0]].extratangent[p[1]][1]);
+						stp.pushPoint(this.vertices[p[0]].extratangent[p[1]][2]);		stp.pushPoint(this.vertices[p[0]].extratangent[p[1]][3]);
+						stp.pushPoint(this.vertices[p[1]].extratangent[p[0]][3]);		stp.pushPoint(this.vertices[p[1]].extratangent[p[0]][2]);
+						stp.pushPoint(this.vertices[p[1]].extratangent[p[0]][1]);		stp.pushPoint(this.newVertexPoint(p[1]));
+
+						stp.pushPoint(this.vertices[p[0]].extratangent[p[3]][1]);		stp.pushPoint(this.vertices[p[0]].extrafacepoint[f][1]);
+						stp.pushPoint(this.vertices[p[0]].extrafacetangent[f][p[1]][1]);	stp.pushPoint(this.vertices[p[0]].extrafacetangent[f][p[1]][2]);
+						stp.pushPoint(this.vertices[p[1]].extrafacetangent[f][p[0]][2]);	stp.pushPoint(this.vertices[p[1]].extrafacetangent[f][p[0]][1]);
+						stp.pushPoint(this.vertices[p[1]].extrafacepoint[f][1]); 		stp.pushPoint(this.vertices[p[1]].extratangent[p[2]][1]);
+
+						stp.pushPoint(this.vertices[p[0]].extratangent[p[3]][2]);		stp.pushPoint(this.vertices[p[0]].extrafacetangent[f][p[3]][1]);
+						stp.pushPoint(this.vertices[p[0]].extrafacepoint[f][2]);			stp.pushPoint(this.vertices[p[0]].extrafacetangent[f][p[1]][3]);
+						stp.pushPoint(this.vertices[p[1]].extrafacetangent[f][p[0]][3]);	stp.pushPoint(this.vertices[p[1]].extrafacepoint[f][2]);
+						stp.pushPoint(this.vertices[p[1]].extrafacetangent[f][p[2]][1]);	stp.pushPoint(this.vertices[p[1]].extratangent[p[2]][2]);
+
+						stp.pushPoint(this.vertices[p[0]].extratangent[p[3]][3]);		stp.pushPoint(this.vertices[p[0]].extrafacetangent[f][p[3]][2]);
+						stp.pushPoint(this.vertices[p[0]].extrafacetangent[f][p[3]][3]);	stp.pushPoint(this.vertices[p[0]].extrafacepoint[f][3]);
+						stp.pushPoint(this.vertices[p[1]].extrafacepoint[f][3]);			stp.pushPoint(this.vertices[p[1]].extrafacetangent[f][p[2]][3]);
+						stp.pushPoint(this.vertices[p[1]].extrafacetangent[f][p[2]][2]);	stp.pushPoint(this.vertices[p[1]].extratangent[p[2]][3]);
+
+						stp.pushPoint(this.vertices[p[3]].extratangent[p[0]][3]);		stp.pushPoint(this.vertices[p[3]].extrafacetangent[f][p[0]][2]);
+						stp.pushPoint(this.vertices[p[3]].extrafacetangent[f][p[0]][3]);	stp.pushPoint(this.vertices[p[3]].extrafacepoint[f][3]);
+						stp.pushPoint(this.vertices[p[2]].extrafacepoint[f][3]);			stp.pushPoint(this.vertices[p[2]].extrafacetangent[f][p[1]][3]);
+						stp.pushPoint(this.vertices[p[2]].extrafacetangent[f][p[1]][2]);	stp.pushPoint(this.vertices[p[2]].extratangent[p[1]][3]);
+
+						if ( !this.faces[f].isShort )
+						{
+							stp.pushPoint(this.vertices[p[3]].extratangent[p[0]][2]);		stp.pushPoint(this.vertices[p[3]].extrafacetangent[f][p[0]][1]);
+							stp.pushPoint(this.vertices[p[3]].extrafacepoint[f][2]);			stp.pushPoint(this.vertices[p[3]].extrafacetangent[f][p[2]][3]);
+							stp.pushPoint(this.vertices[p[2]].extrafacetangent[f][p[3]][3]);	stp.pushPoint(this.vertices[p[2]].extrafacepoint[f][2]);
+							stp.pushPoint(this.vertices[p[2]].extrafacetangent[f][p[1]][1]);	stp.pushPoint(this.vertices[p[2]].extratangent[p[1]][2]);
+
+							stp.pushPoint(this.vertices[p[3]].extratangent[p[0]][1]);		stp.pushPoint(this.vertices[p[3]].extrafacepoint[f][1]);
+							stp.pushPoint(this.vertices[p[3]].extrafacetangent[f][p[2]][1]);	stp.pushPoint(this.vertices[p[3]].extrafacetangent[f][p[2]][2]);
+							stp.pushPoint(this.vertices[p[2]].extrafacetangent[f][p[3]][2]);	stp.pushPoint(this.vertices[p[2]].extrafacetangent[f][p[3]][1]);
+							stp.pushPoint(this.vertices[p[2]].extrafacepoint[f][1]);			stp.pushPoint(this.vertices[p[2]].extratangent[p[1]][1]);
+						}
+
+						stp.pushPoint(this.newVertexPoint(p[3]));					stp.pushPoint(this.vertices[p[3]].extratangent[p[2]][1]);
+						stp.pushPoint(this.vertices[p[3]].extratangent[p[2]][2]);		stp.pushPoint(this.vertices[p[3]].extratangent[p[2]][3]);
+						stp.pushPoint(this.vertices[p[2]].extratangent[p[3]][3]);		stp.pushPoint(this.vertices[p[2]].extratangent[p[3]][2]);
+						stp.pushPoint(this.vertices[p[2]].extratangent[p[3]][1]);		stp.pushPoint(this.newVertexPoint(p[2]));
+
+						stp.pushFace();
+					}
+					stp.close();
+					return stp.getFaces();
+				}
+			};
+
+			var STEP = function () { this.counter = 0; this.pBuffer = []; this.fBuffer = []; this.filename = '';};
+			STEP.prototype =
+			{ 	constructor: STEP,
+				init: function ( filename ) { this.filename = filename; this.file = moi.filesystem.openFileStream( filename, 'w' ); this.file.writeLine('ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;');},
+				close: function () { this.file.writeLine('ENDSEC;\nEND-ISO-10303-21;'); this.file.close(); },
+				getFaces: function ()
+				{
+					var rev = moi.geometryDatabase.revision;
+					moi.geometryDatabase.fileImport(this.filename);
+					var objects = moi.geometryDatabase.getObjects();
+					var faces = moi.geometryDatabase.createObjectList();
+					for ( var i = 0; i < objects.length; ++i ) if (objects.item(i).databaseRevision > rev ) faces.addObject(objects.item(i));
+					moi.filesystem.deleteFile(this.filename);
+					return faces;
+				},
+				pushPoint: function ( pt )
+				{
+					this.counter++;
+					this.file.writeLine('#'+this.counter+' = CARTESIAN_POINT (\'\', ('+Math.floor(pt.x*1e7)/1e7+','+Math.floor(pt.y*1e7)/1e7+','+Math.floor(pt.z*1e7)/1e7+'));');
+					this.pBuffer.push(this.counter);
+				},
+				pushFace: function ()
+				{
+					this.counter++;
+					if (this.pBuffer.length === 64) { this.file.writeLine('#'+this.counter+' = B_SPLINE_SURFACE_WITH_KNOTS (\'\',  3, 3, '+this.pointsToString(8,8)+', .UNSPECIFIED., .F., .F., .U., (4, 2, 2, 4), (4, 2, 2, 4), (0., 3., 6., 9.), (0., 3., 6., 9.), .UNSPECIFIED.);');}
+					else if (this.pBuffer.length === 48) { this.file.writeLine('#'+this.counter+' = B_SPLINE_SURFACE_WITH_KNOTS (\'\',  3, 3, '+this.pointsToString(8,6)+', .UNSPECIFIED., .F., .F., .U., (4, 2, 4), (4, 2, 2, 4), (0., 3., 6., 9.), (0., 3., 6., 9.), .UNSPECIFIED.);');}
+					else if (this.pBuffer.length === 16) { this.file.writeLine('#'+this.counter+' = B_SPLINE_SURFACE_WITH_KNOTS (\'\',  3, 3, '+this.pointsToString(4,4)+', .UNSPECIFIED., .F., .F., .U., (4, 4), (4, 4), (0., 1.), (0., 1.), .UNSPECIFIED.);'); }
+					this.counter++;	this.file.writeLine('#'+this.counter+' = ADVANCED_FACE (\'\', (), #'+(this.counter-1)+', .T.);');
+					this.pBuffer = [];	this.fBuffer.push(this.counter);
+				},
+				pointsToString: function (x, y) { var st, sts; for (var i = 0; i<y; i++) { for (var j = 0; j<x; j++) { if ( j>0 ) { sts = sts+', ' } else { sts = '' } sts = sts + '#'+this.pBuffer[i*x+j]; } if ( i>0 ) { st = st+', ' } else { st = '' } st = st + '('+sts+')'; } return '('+st+')';	}
+			};
+
+			/* ################################## ************** ######################################## */
+
+			function cleanObjects() {moi.geometryDatabase.removeObjects(subdobjects); subdobjects = moi.geometryDatabase.createObjectList();}
+			function restoreState () { cleanObjects(); sourceObject.setProperty( 'hidden', 0); sourceObject.setProperty( 'selected', 1); }
+			function joinSurfaces () { subdobjects.setProperty( 'showPoints', 0); var joinF = moi.command.createFactory( 'join' ); joinF.setInput( 0, subdobjects ); joinF.commit();  moi.geometryDatabase.removeObjects(sourceObject); sourceObject.setProperty( 'hidden', 0);}
+			function switchControlPoints() { showCPointsFlag = !showCPointsFlag; subdobjects.setProperty( 'showPoints', showCPointsFlag); }
+			function showControlPoints() { if (showCPointsFlag) subdobjects.setProperty( 'showPoints', true); }
+
+			function UpdateSubdiv(firstrun)
+			{
+				if (smooth.value === lastalpha) return;
+				lastalpha = smooth.value;
+				var startTime = new Date();
+				m.calculateBasePoints(lastalpha/100);
+				var period1 = (new Date() - startTime);
+				cleanObjects();
+				subdobjects = m.buildOrdinaryFaces(false);
+				var period2 = (new Date() - startTime);
+				progressinfo.innerHTML = "calc: "+period1+" ms | total: "+period2+" ms";
+				if ( firstrun ) sourceObject.setProperty( 'hidden', 1);
+				moi.geometryDatabase.addObjects(subdobjects);
+				showControlPoints();
+			}
+
+			function FinalizeSubdiv()
+			{
+				var startTime = new Date();
+				m.calculateExtraPoints(true);
+				var period1 = (new Date() - startTime);
+				cleanObjects();
+				subdobjects = m.buildOrdinaryFaces(true);
+				var stp=m.buildExtraordinaryFaces();
+				subdobjects.setProperty('selected', true);
+				var period2 = (new Date() - startTime);
+				progressinfo.innerHTML = "calc: "+period1+" ms | total: "+period2+" ms";
+				moi.geometryDatabase.addObjects(subdobjects);
+				subdobjects = concat(subdobjects,stp);
+			}
+
+			function init()
+			{
+				sourceObject = moi.geometryDatabase.getSelectedObjects().getBReps();
+				sourceObject.setProperty( 'selected', 0);
+				subdobjects = moi.geometryDatabase.createObjectList();
+				m = new Mesh();
+				var startTime = new Date();
+				var errorC=0;
+				if (sourceObject.length === 0) return 0;
+				for (var i=0; i<sourceObject.length; i++)
+				{
+					var sourceFaces = sourceObject.item(i).getFaces();
+					var errorFaces = m.loadMesh(sourceFaces);
+					if ( errorFaces.length > 0 ) for (var f in errorFaces) { sourceFaces.item(errorFaces[f]).selected=true; errorC++;}
+				}
+
+				if (errorC>0) { moi.ui.alert("Unsupported polygon type! ("+errorC+")"); moi.view.resetAll(); return 0;}
+				var period1 = (new Date() - startTime);
+
+				calcConstants(100);
+				m.processMesh();
+				UpdateSubdiv(true);
+				setInterval(UpdateSubdiv,20);
+				return 1;
+			}
+
+		</script>
+	</head>
+	<body class="commandbody">
+		<div id="TitleContainer" style="width:100%; text-align:center;" ondblclick="switchControlPoints();">
+		<strong>Subdivision</strong>
+		</div>
+		<div id="InputContainer" class="commandoptions">
+			<table style="width:100%; text-align:center;">
+				<col width="5"><col><col width="5">
+				<tr>
+					<td onclick= "if (smooth.value > 30) {smooth.value-=10} else {smooth.value=100}">S</td>
+					<td><moi:Slider id="smoothSlider" min="1" max="100" style="width:90%"   /></td>
+					<td><moi:UnsignedIntegerInput id="smooth" style="width:3em;" default="100" binding="smoothSlider.value = this.value"/></td>
+				</tr>
+			</table>
+		</div>
+		<div id="cornersCheckbox" class="hiddencommandoptions">
+		<table style="width:100%; padding-top:0.2em;">
+			<tr>
+				<td><moi:CheckButton id="preserveCorners" default="true" >Preserve corners</moi:CheckButton></td>
+			</tr>
+		</table>
+		</div>
+		<moi:CommandDoneCancel />
+		<div id="progressinfo" class="commandoptions" style="text-align:center; font-size:75%;">-- ms</div>
+	</body>
+</html>
