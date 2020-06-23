@@ -48,43 +48,7 @@ def BMOI_Export():
     temp_file_blender = path + "/BMOI_TMP_BLENDER.obj"       
               
     #---EXPORT---
-    export_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.export_scale
-    # bpy.ops.export_scene.fbx(filepath = temp_file_blender,
-    #                              check_existing=True,
-    #                              filter_glob="*.fbx",                                  
-    #                              use_selection=True, 
-    #                              use_active_collection=False, 
-    #                              global_scale=global_scale, 
-    #                              apply_unit_scale=True, 
-    #                              apply_scale_options='FBX_SCALE_ALL', 
-    #                              bake_space_transform=True, 
-    #                              object_types={'MESH'}, 
-    #                              use_mesh_modifiers=True, 
-    #                              use_mesh_modifiers_render=True, 
-    #                              mesh_smooth_type='OFF', 
-    #                              use_mesh_edges=False, 
-    #                              use_tspace=False, 
-    #                              use_custom_props=False, 
-    #                              add_leaf_bones=False, 
-    #                              primary_bone_axis='Y', 
-    #                              secondary_bone_axis='X', 
-    #                              use_armature_deform_only=False, 
-    #                              armature_nodetype='NULL', 
-    #                              bake_anim=False, 
-    #                              bake_anim_use_all_bones=False, 
-    #                              bake_anim_use_nla_strips=False, 
-    #                              bake_anim_use_all_actions=False, 
-    #                              bake_anim_force_startend_keying=False, 
-    #                              bake_anim_step=1, 
-    #                              bake_anim_simplify_factor=1, 
-    #                              path_mode='AUTO', 
-    #                              embed_textures=False, 
-    #                              batch_mode='OFF', 
-    #                              use_batch_own_dir=True, 
-    #                              use_metadata=True, 
-    #                              axis_forward='Y', 
-    #                              axis_up='Z'
-    #                             )    
+    export_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.export_scale      
      # ---EXPORT---
     bpy.ops.export_scene.obj(filepath=temp_file_blender,
                              check_existing=True,
@@ -93,7 +57,7 @@ def BMOI_Export():
                              filter_glob="*.obj;*.mtl",
                              use_selection=True,
                              use_animation=False,
-                             use_mesh_modifiers=False,
+                             use_mesh_modifiers=True,
                              # use_mesh_modifiers_render = False,
                              use_edges=False,
                              use_smooth_groups=False,
@@ -170,7 +134,7 @@ class BMOI3D_OT_Export(Operator):
             return {'FINISHED'}
         else:
             BMOI_Export()
-            self.report ({'INFO'}, 'BMOI3D - EXPORT DONE!')
+            self.report ({'INFO'}, 'MOI3D - EXPORT DONE!')
             return {'FINISHED'}
 
 class BMOI3D_OT_Import(Operator):
@@ -181,7 +145,7 @@ class BMOI3D_OT_Import(Operator):
     
     def execute(self, context):        
         BMAX_Import()
-        self.report ({'INFO'}, 'BMAX - IMPORT DONE!')
+        self.report ({'INFO'}, 'MOI3D - IMPORT DONE!')
         return {'FINISHED'}
         
 # panel containing all tools
@@ -208,7 +172,7 @@ class BMOI3D_AddonPreferences(AddonPreferences):
     export_scale: FloatProperty(
         name="Export Scale",
         description="Export Global Scale",
-        default=100,
+        default=1,
         min=0.000,
         max=1000000000.000,
         step=0.1,
@@ -218,7 +182,7 @@ class BMOI3D_AddonPreferences(AddonPreferences):
     import_scale: FloatProperty(
         name="Import Scale",
         description="Import Global Scale",
-        default=1,
+        default=100,
         min=0.000,
         max=1000000000.000,
         step=0.1,
@@ -239,7 +203,7 @@ class BMOI3D_AddonPreferences(AddonPreferences):
         col.label(text = "FBX import/export global scale")
         col.prop(self, "export_scale")
         col.prop(self, "import_scale")               
-        col.label(text = "Select custom BMOI3D exchange folder(keep it empty for default BMAX folder)")
+        col.label(text = "Select custom BMOI3D exchange folder( When field is empty path is C:\Users\USERNAME\Local\Temp\BMOI)")
         col.prop(self, "tempFolder") 
 
  

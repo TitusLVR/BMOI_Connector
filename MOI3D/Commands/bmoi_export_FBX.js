@@ -1,7 +1,9 @@
 
-// ------------------------ Rocket 3F/MoI Bridge 1.3------------------------
+// BMOI Connector
 
-var Bmoi_path = "c:/Users/Titus/AppData/Local/Temp/BMOI/BMOI_TMP_MOI3D.fbx"	
+var MoI_dir = moi.filesystem.getAppDataDir();
+var Base_dir = MoI_dir.substr( 0, MoI_dir.length - 13 );
+var Bmoi_path = Base_dir + '\\Local\\Temp\\BMOI\\BMOI_TMP_MOI3D.fbx'
 	
 
 function Export_to_Blender()
