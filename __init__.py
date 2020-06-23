@@ -1,7 +1,7 @@
 bl_info = {
     "name": "BMOI Connector",
     "author": "Titus Lavrov / Email: Titus.mailbox@gmail.com",
-    "version": (0, 1, 1),
+    "version": (0, 1, 0),
     "blender": (2, 80, 0),
     "location": "View3D > Toolbar and View3D",
     "warning": "",
@@ -34,21 +34,23 @@ from bpy.props import (
 
 def BMOI_Export(): 
     
+    prefs = bpy.context.preferences.addons['BMOI_Connector'].preferences
     #---Variables---
-    customPath = bpy.context.preferences.addons['BMOI_Connector'].preferences.tempFolder
+    customPath = prefs.tempFolder
     if customPath == '':            
         path = "" + tempfile.gettempdir() + "\\BMOI"
         path = '/'.join(path.split('\\'))
         if not os.path.exists(path):
             os.makedirs(path)
     else:
-        path = bpy.context.preferences.addons['BMOI_Connector'].preferences.tempFolder
+        path = prefs.tempFolder
     
     temp_file_moi = path + "/BMOI_TMP_MOI.fbx"
     temp_file_blender = path + "/BMOI_TMP_BLENDER.obj"       
               
     #---EXPORT---
-    export_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.export_scale      
+    export_scale = prefs.export_scale
+    apply_mods = prefs.export_use_modifiers     
      # ---EXPORT---
     bpy.ops.export_scene.obj(filepath=temp_file_blender,
                              check_existing=True,
@@ -57,7 +59,7 @@ def BMOI_Export():
                              filter_glob="*.obj;*.mtl",
                              use_selection=True,
                              use_animation=False,
-                             use_mesh_modifiers=True,
+                             use_mesh_modifiers = apply_mods,
                              # use_mesh_modifiers_render = False,
                              use_edges=False,
                              use_smooth_groups=False,
@@ -78,22 +80,24 @@ def BMOI_Export():
                 
 
 def BMAX_Import():    
-    #---Variables---         
-    customPath = bpy.context.preferences.addons['BMOI_Connector'].preferences.tempFolder
+    #---Variables---  
+    prefs = bpy.context.preferences.addons['BMOI_Connector'].preferences       
+    customPath = prefs.tempFolder
     if customPath == '':            
         path = "" + tempfile.gettempdir() + "\\BMOI"
         path = '/'.join(path.split('\\'))
         if not os.path.exists(path):
             os.makedirs(path)
     else:
-        path = bpy.context.preferences.addons['BMOI_Connector'].preferences.tempFolder
+        path = prefs.tempFolder
     
     temp_file_moi = path + "/BMOI_TMP_MOI3D.fbx"
     temp_file_blender = path + "/BMOI_TMP_BLENDER.fbx"            
        
     #---IMPORT---        
     #---Import FXB---
-    import_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.import_scale
+    import_scale = prefs.import_scale
+    
     if os.path.isfile(temp_file_moi) == True: 
         bpy.ops.import_scene.fbx(filepath=temp_file_moi, 
                                          directory="", 
@@ -193,17 +197,26 @@ class BMOI3D_AddonPreferences(AddonPreferences):
     tempFolder : StringProperty(
         name = "BMOI3D custom exchange folder",
         subtype = 'DIR_PATH',
-        )  
+        )
+
+    export_use_modifiers: BoolProperty(
+        name="Apply modifiers",
+        description="Enable or disable UVlayout function.",
+        default=True
+    ) 
 
     def draw(self, context):        
         props = bpy.context.preferences.addons[__name__].preferences    
         
         layout = self.layout
         col = layout.column(align=True)
-        col.label(text = "FBX import/export global scale")
+        col.label(text = "Export properties")
         col.prop(self, "export_scale")
-        col.prop(self, "import_scale")               
-        col.label(text = "Select custom BMOI3D exchange folder( When field is empty path is C:\Users\USERNAME\Local\Temp\BMOI)")
+        col.prop(self, "export_use_modifiers")
+        col.label(text = "Import properties")
+        col.prop(self, "import_scale")
+        col.label(text = "Exchange Folder:")        
+        col.label(text = "Select custom BMOI3D exchange folder(When field is empty path is C:/Users/USERNAME/Local/Temp/BMOI)")
         col.prop(self, "tempFolder") 
 
  
