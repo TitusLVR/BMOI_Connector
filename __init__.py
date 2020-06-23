@@ -48,7 +48,7 @@ def BMOI_Export():
     temp_file_blender = path + "/BMOI_TMP_BLENDER.obj"       
               
     #---EXPORT---
-    global_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.global_scale
+    export_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.export_scale
     # bpy.ops.export_scene.fbx(filepath = temp_file_blender,
     #                              check_existing=True,
     #                              filter_glob="*.fbx",                                  
@@ -108,7 +108,7 @@ def BMOI_Export():
                              group_by_object=True,
                              group_by_material=False,
                              keep_vertex_order=True,
-                             global_scale=global_scale,
+                             global_scale=export_scale,
                              path_mode='AUTO')
    
                 
@@ -129,13 +129,13 @@ def BMAX_Import():
        
     #---IMPORT---        
     #---Import FXB---
-    global_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.global_scale
+    import_scale = bpy.context.preferences.addons['BMOI_Connector'].preferences.import_scale
     if os.path.isfile(temp_file_moi) == True: 
         bpy.ops.import_scene.fbx(filepath=temp_file_moi, 
                                          directory="", 
                                          filter_glob="*.fbx",
                                          use_manual_orientation=False, 
-                                         global_scale=global_scale, 
+                                         global_scale=import_scale, 
                                          bake_space_transform=False, 
                                          use_custom_normals=True, 
                                          use_image_search=False, 
@@ -154,8 +154,9 @@ def BMAX_Import():
                                          axis_forward='-Z', 
                                          axis_up='Y'
                                          )
-        if len(bpy.context.selected_objects) != 0:
-            bpy.context.view_layer.objects.active = bpy.context.selected_objects[0] 
+        if len(bpy.context.selected_objects) != 0:            
+            bpy.context.view_layer.objects.active = bpy.context.selected_objects[0]
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True) 
 
 class BMOI3D_OT_Export(Operator):
     bl_idname = "bmoi3d.export"
@@ -195,7 +196,8 @@ class VIEW3D_PT_BMOI3D(Panel):
         layout = self.layout       
         
         col = layout.column(align=True)
-        col.prop(prefs,"global_scale")
+        col.prop(prefs,"export_scale")
+        col.prop(prefs,"import_scale")
         col.scale_y = 1.5
         col.operator('bmoi3d.export', icon='EXPORT',text = "Send to MOI3D")
         col.operator('bmoi3d.import',icon='IMPORT', text="Get from MOI3D")
@@ -203,15 +205,26 @@ class VIEW3D_PT_BMOI3D(Panel):
 class BMOI3D_AddonPreferences(AddonPreferences):
     bl_idname = __name__    
 
-    global_scale: FloatProperty(
-        name="Global scale",
-        description="FBX import/export global scale",
+    export_scale: FloatProperty(
+        name="Export Scale",
+        description="Export Global Scale",
+        default=100,
+        min=0.000,
+        max=1000000000.000,
+        step=0.1,
+        precision=3
+    )
+
+    import_scale: FloatProperty(
+        name="Import Scale",
+        description="Import Global Scale",
         default=1,
         min=0.000,
         max=1000000000.000,
         step=0.1,
         precision=3
     )
+
 
     tempFolder : StringProperty(
         name = "BMOI3D custom exchange folder",
@@ -224,7 +237,8 @@ class BMOI3D_AddonPreferences(AddonPreferences):
         layout = self.layout
         col = layout.column(align=True)
         col.label(text = "FBX import/export global scale")
-        col.prop(self, "global_scale")               
+        col.prop(self, "export_scale")
+        col.prop(self, "import_scale")               
         col.label(text = "Select custom BMOI3D exchange folder(keep it empty for default BMAX folder)")
         col.prop(self, "tempFolder") 
 

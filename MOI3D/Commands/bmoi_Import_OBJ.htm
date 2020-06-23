@@ -27,7 +27,8 @@
 			function normalizeObj (norm)
 			{
 				normalize = norm;
-				scale = 200/(max.x-min.x+max.y-min.y+max.z-min.z)/3
+				//scale = 200/(max.x-min.x+max.y-min.y+max.z-min.z)/3
+				scale = 1
 				var scalelog = Math.pow(10, Math.round(Math.log(scale)/Math.log(10)));
 				if (scalelog>1) { scalelog /=10 }
 				scale = Math.round(scale/scalelog)*scalelog;
@@ -35,7 +36,8 @@
 				if ( !normalize && scale<1 ) scale=1;
 				scale *=100;
 				if ( !normalize ) for ( v in vertices ) vertices[v] = moi.VectorMath.createPoint(vertices[v].x*scale, vertices[v].y*scale, vertices[v].z*scale);		
-				if ( normalize ) for ( v in vertices ) vertices[v] = moi.VectorMath.createPoint((vertices[v].x-max.x/2-min.x/2)*scale, (vertices[v].y-max.y/2-min.y/2)*scale, (vertices[v].z-min.z)*scale);
+				//if ( normalize ) for ( v in vertices ) vertices[v] = moi.VectorMath.createPoint((vertices[v].x-max.x/2-min.x/2)*scale, (vertices[v].y-max.y/2-min.y/2)*scale, (vertices[v].z-min.z)*scale);
+				if ( normalize ) for ( v in vertices ) vertices[v] = moi.VectorMath.createPoint(vertices[v].x*scale, vertices[v].y*scale, vertices[v].z*scale);
 				scale /=100;
 			}	
 			

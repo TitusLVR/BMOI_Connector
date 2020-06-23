@@ -27,6 +27,3 @@ Export_to_Blender()
 	
 	
 	
-	
-	
-	

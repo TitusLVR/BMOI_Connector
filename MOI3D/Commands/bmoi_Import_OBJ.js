@@ -1,8 +1,10 @@
-// ImportObj v.1.5 - Max Smirnov. 2015
+// ImportObj v.1.5 - Max Smirnov. 2015 + Modified version by Titus (Titus.mailbox@gmail.com)
 function importObj()
 {
-	//var objPath = moi.filesystem.getOpenFileName( 'Import OBJ', ' (*.obj)|*.obj' );
-	var objPath = "c:/Users/Titus/AppData/Local/Temp/BMOI/BMOI_TMP_BLENDER.obj"
+	var MoI_dir = moi.filesystem.getAppDataDir();
+	var Base_dir = MoI_dir.substr( 0, MoI_dir.length - 13 );
+	var objPath = Base_dir + '\\Local\\Temp\\BMOI\\BMOI_TMP_BLENDER.obj'	
+
 	if ( !objPath ) return false;
 	moi.ui.commandUI.progressinfo.innerHTML="Loading"; 
 	moi.ui.commandUI.loadObj( objPath );
