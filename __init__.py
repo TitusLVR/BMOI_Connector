@@ -1,7 +1,7 @@
 bl_info = {
     "name": "BMOI Connector",
     "author": "Titus Lavrov / Email: Titus.mailbox@gmail.com",
-    "version": (0, 1, 0),
+    "version": (0, 1, 1),
     "blender": (2, 80, 0),
     "location": "View3D > Toolbar and View3D",
     "warning": "",
@@ -31,6 +31,19 @@ from bpy.props import (
         StringProperty,
         )
 #Functions
+
+def update_category(self, context):
+    message = "Panel Update Failed"
+    try:
+        if "bl_rna" in VIEW3D_PT_BMOI3D.__dict__:
+            bpy.utils.unregister_class(VIEW3D_PT_BMOI3D)
+        
+        VIEW3D_PT_BMOI3D.bl_category = context.preferences.addons["BMOI_Connector"].preferences.category
+        bpy.utils.register_class(VIEW3D_PT_BMOI3D)
+
+    except Exception as e:
+        print("\n[{}]\n{}\n\nError:\n{}".format("BMOI_Connector", message, e))
+        pass
 
 def BMOI_Export(): 
     
@@ -171,8 +184,15 @@ class VIEW3D_PT_BMOI3D(Panel):
         col.operator('bmoi3d.import',icon='IMPORT', text="Get from MOI3D")
         
 class BMOI3D_AddonPreferences(AddonPreferences):
-    bl_idname = __name__    
+    bl_idname = "BMOI_Connector"
 
+    category: StringProperty(
+        name="Tab Name",
+        description="Choose a name for the category of the panel",
+        default="BMOI",
+        update=update_category
+        )
+    
     export_scale: FloatProperty(
         name="Export Scale",
         description="Export Global Scale",
@@ -205,17 +225,21 @@ class BMOI3D_AddonPreferences(AddonPreferences):
         default=True
     ) 
 
-    def draw(self, context):        
-        props = bpy.context.preferences.addons[__name__].preferences    
-        
+    def draw(self, context):
+        props = bpy.context.preferences.addons["BMOI_Connector"].preferences
         layout = self.layout
         col = layout.column(align=True)
+        # Category
+        box = col.box()
+        col = box.column(align=True)
+        col.label(text="Category:")
+        col.prop(self, "category")
         col.label(text = "Export properties")
         col.prop(self, "export_scale")
         col.prop(self, "export_use_modifiers")
         col.label(text = "Import properties")
         col.prop(self, "import_scale")
-        col.label(text = "Exchange Folder:")        
+        col.label(text = "Exchange Folder:")
         col.label(text = "Select custom BMOI3D exchange folder(When field is empty path is C:/Users/USERNAME/Local/Temp/BMOI)")
         col.prop(self, "tempFolder") 
 
