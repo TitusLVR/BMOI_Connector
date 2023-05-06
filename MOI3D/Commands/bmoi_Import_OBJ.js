@@ -1,9 +1,29 @@
 // ImportObj v.1.5 - Max Smirnov. 2015 + Modified version by Titus (Titus.mailbox@gmail.com)
+function getMethods(obj) {
+	var result = [];
+	for (var id in obj) {
+	  try {
+		if (typeof(obj[id]) == "function") {
+		  result.push(id + ": " + obj[id].toString());
+		}
+	  } catch (err) {
+		result.push(id + ": inaccessible");
+	  }
+	}
+	return result;
+  }
+
 function importObj()
 {
 	var MoI_dir = moi.filesystem.getAppDataDir();
 	var Base_dir = MoI_dir.substr( 0, MoI_dir.length - 13 );
-	var objPath = Base_dir + '\\Local\\Temp\\BMOI\\BMOI_TMP_BLENDER.obj'	
+	var first_letter = MoI_dir.substr( 0, 2 );
+	var is_mac = first_letter == "z:" ? true : false;
+
+	var objPath = Base_dir + '\\Local\\Temp\\BMOI\\BMOI_TMP_BLENDER.obj'
+	if(is_mac){
+		objPath = MoI_dir + '\\BMOI\\BMOI_TMP_BLENDER.obj'
+	}	
 
 	if ( !objPath ) return false;
 	moi.ui.commandUI.progressinfo.innerHTML="Loading"; 
