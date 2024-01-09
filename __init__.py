@@ -65,32 +65,31 @@ def BMOI_Export():
     export_scale = prefs.export_scale
     apply_mods = prefs.export_use_modifiers     
      # ---EXPORT---
-    bpy.ops.export_scene.obj(filepath=temp_file_blender,
-                             check_existing=True,
-                             axis_forward='-Z',
-                             axis_up='Y',
-                             filter_glob="*.obj;*.mtl",
-                             use_selection=True,
-                             use_animation=False,
-                             use_mesh_modifiers = apply_mods,
-                             # use_mesh_modifiers_render = False,
-                             use_edges=False,
-                             use_smooth_groups=False,
-                             use_smooth_groups_bitflags=False,
-                             use_normals=True,
-                             use_uvs=True,
-                             use_materials=True,
-                             use_triangles=False,
-                             use_nurbs=False,
-                             use_vertex_groups=False,
-                             use_blen_objects=False,
-                             group_by_object=True,
-                             group_by_material=False,
-                             keep_vertex_order=True,
-                             global_scale=export_scale,
-                             path_mode='AUTO')
-   
-                
+    bpy.ops.wm.obj_export(filepath=temp_file_blender,
+                          check_existing=True,
+                          export_animation=False,
+                          start_frame=0,
+                          end_frame=0,
+                          forward_axis='NEGATIVE_Z',
+                          up_axis='Y',
+                          global_scale=export_scale,
+                          apply_modifiers=apply_mods,
+                          export_eval_mode='DAG_EVAL_VIEWPORT',
+                          export_selected_objects=True,
+                          export_uv=True,
+                          export_normals=True,
+                          export_colors=False,
+                          export_materials=True,
+                          export_pbr_extensions=False,
+                          path_mode='AUTO',
+                          export_triangulated_mesh=False,
+                          export_curves_as_nurbs=False,
+                          export_object_groups=True,
+                          export_material_groups=False,
+                          export_vertex_groups=False,
+                          export_smooth_groups=False,
+                          smooth_group_bitflags=False,
+                          filter_glob='*.obj;*.mtl')
 
 def BMAX_Import():    
     #---Variables---  
